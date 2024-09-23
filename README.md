@@ -4,6 +4,10 @@
 
 (Pending: introductory description.)
 
+Please note: The codes generated from the published paper listed below will be included in this repository soon.
+
+Also, we plan to include 'getting started' instructions and will provide an extension of the Notebook to instead run as a command line Python script.
+
 ***
 
 If you use LASSI in your, then please cite the following paper:

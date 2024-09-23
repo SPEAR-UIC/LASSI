@@ -2,6 +2,8 @@
 
 ***
 
+![LASSI](/images/LASSI_logo_v0.png)
+
 (Pending: introductory description.)
 
 Please note: The codes generated from the published paper listed below will be included in this repository soon.

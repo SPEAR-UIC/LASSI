@@ -24,7 +24,7 @@ def unload_ollama_model(model):
     print(result_unload_LLM.stderr)
 
 
-def ollama_streaming(data):
+def ollama_streaming(data, viewoutput):
        
     # Create a display object to show streaming text
     output_display = display(display_id=True)
@@ -80,7 +80,8 @@ def ollama_streaming(data):
         )
         
         # Update the display output with styled text
-        html_display.update(HTML(html_content))
+        if viewoutput:
+            html_display.update(HTML(html_content))
     
     # Clear the streaming display after completion
     # clear_output(wait=True)
@@ -98,7 +99,7 @@ ollama.list() [preview what is available to use on the server]
 
 Example: model='codestral:latest'
 """
-def ollama_llm(model, system_prompt, content_prompt, temp=0.2, verifyprompt=False):
+def ollama_llm(model, system_prompt, content_prompt, temp=0.2, viewoutput=True, verifyprompt=False):
     # Ollama serve must already be running on a port on this server 
     
     if verifyprompt:
@@ -120,6 +121,6 @@ def ollama_llm(model, system_prompt, content_prompt, temp=0.2, verifyprompt=Fals
         "top_p": 0.9,
     }
 
-    response = ollama_streaming(data)
+    response = ollama_streaming(data, viewoutput)
     
     return response

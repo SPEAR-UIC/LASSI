@@ -1,0 +1,43 @@
+***** EXPERIMENT CONFIGURATION SUMMARY *****
+
+Application: randomAccess
+
+Translation: CUDA_to_SYCL
+Translate from: cu
+Translate to: cpp
+
+LLM Source: argo
+Model: gpt51
+System Prompt Index: CUDA_to_SYCL
+Code file template: translated_code/argo_gpt51/promptset_CUDA_to_SYCL/randomAccess-cuda_main_translatecode_SYCL_exp01a_withcontext
+
+LLM System Prompt: 
+
+You are a professional coding AI assistant that specializes in translating parallelized CUDA code to C++ code using SYCL. Provide only complete code without explanation. Surround your new generated code with the three characters ```.
+
+LLM Prompt: 
+
+Translate the following parallelized CUDA program to instead use C++ code written with the SYCL framework.
+
+----- METRICS -----
+Experiment date-time: 12-22-2025_t12_43_38
+Time (sec): 61.93
+Token similarity (tokenize): 0.00
+Token similarity (tiktoken): 0.59
+Line-based similarity with reordering: 0.36
+Self-correction iteration count: 1
+
+
+----- SOURCE: EXECUTION OUTPUT -----Table size = 67108864
+Main table size   = 2^26 = 67108864 words
+Number of updates = 268435456
+Average kernel execution time: 6.028384 (s)
+Found 0 errors in 67108864 locations (PASS).
+
+
+
+----- GENERATED: EXECUTION OUTPUT -----Table size = 67108864
+Main table size = 2^26 = 67108864 words
+Number of updates = 268435456
+Average kernel execution time: 6.250908 (s)
+Found 0 errors in 67108864 locations (PASS).

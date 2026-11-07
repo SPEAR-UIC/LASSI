@@ -672,6 +672,9 @@ def run_experiment(cfg):
     # Store the current working directory (needed because code execution changes it)
     original_home_directory = os.getcwd()
 
+    # Streamed responses (Argo) follow the same display setting as everything else
+    llm_backends.configure(echo_stream=cfg.display_response)
+
     # Unload any previously loaded LLMs in the Ollama server (clear out the memory)
     if cfg.llm_source == "ollama":
         llm_backends.unload_ollama_model(cfg.model)

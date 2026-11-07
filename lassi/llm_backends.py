@@ -62,8 +62,12 @@ argo_verify = True
 # Seconds to wait on a single LLM response before giving up.
 request_timeout = 600
 
+# Print streamed responses (Argo) to the console as they arrive. LASSI sets this from its
+# display_response setting, so --quiet silences the stream as well.
+echo_stream = True
+
 _SETTINGS = ("ollama_host", "lmstudio_base_url", "openai_base_url", "openai_api_key",
-             "argo_url", "argo_username", "argo_verify", "request_timeout")
+             "argo_url", "argo_username", "argo_verify", "request_timeout", "echo_stream")
 
 LLM_SOURCES = ("ollama", "lmstudio", "openai_compatible", "argo")
 
@@ -308,9 +312,11 @@ def argo_llm(model, system_prompt, content_prompt, temp=0.2, verifyprompt=False)
                 f"Argo Gateway returned HTTP {resp.status_code}: {resp.text}", response=resp)
         for chunk in resp.iter_content(chunk_size=None, decode_unicode=True):
             if chunk:
-                print(chunk, end="", flush=True)
+                if echo_stream:
+                    print(chunk, end="", flush=True)
                 response_text += chunk
-    print()
+    if echo_stream:
+        print()
 
     return _strip_think(response_text)
 

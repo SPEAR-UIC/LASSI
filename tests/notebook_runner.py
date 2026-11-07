@@ -65,8 +65,9 @@ def _scripted_llm(app, target_lang, scenario="errors"):
     scenario "errors": a compile error, then an execution error, then good code (once).
     scenario "clean":  good code every time, and a VALID verdict when asked to judge.
     """
+    ext = "cu" if target_lang in ("CUDA", "HIP") else "cpp"
     ref_cpp = open(os.path.join(REPO, "translated_code", "input_codes", "HeCBench", app,
-                                f"{app}-{target_lang.lower()}_main.cpp")).read()
+                                f"{app}-{target_lang.lower()}_main.{ext}")).read()
     good = "```cpp\n" + ref_cpp + "\n```"
     transcript = []
     answers = iter([_BAD_COMPILE, _BAD_EXECUTE, good]) if scenario == "errors" else iter(lambda: good, None)

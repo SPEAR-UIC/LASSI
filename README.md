@@ -86,7 +86,7 @@ The default compiler commands are the paper's, for an A100 (compute capability 8
 - CUDA: `nvcc -std=c++14 -Xcompiler -Wall -arch=sm_80 -O3`
 - OpenMP: `nvc++ -Wall -O3 -Minfo -mp=gpu -gpu=cc80`
 
-For a different GPU change the `-arch` / `-gpu` flag and, if the compiler is not on your `PATH`, give its full path (`--compiler`, `--compiler-flags`).
+For a different GPU change the `-arch` / `-gpu` flag and, if the compiler is not on your `PATH`, give its full path (`--compiler`, `--compiler-flags`). Your GPU's compute capability is printed by `nvidia-smi --query-gpu=compute_cap --format=csv,noheader`; for example `8.9` means `-arch=sm_89` and `-gpu=cc89`.
 
 ### LLM backend setup
 
@@ -156,11 +156,18 @@ With no optional flags, LASSI uses the settings of the paper (Dearing et al., LL
 - **The metrics in the paper's tables:** `Runtime`, `Ratio` (reference runtime divided by translated runtime) and `Self-corr` appear in the results CSV as `lassi_runtime_s`, `lassi_execute_ratio` and `lassi_selfcorrections`. The code-similarity scores are in each run's metadata file.
 - **Non-determinism:** LLM output varies from run to run, so a single run will not reproduce a table cell exactly.
 
-The `tests/` folder checks that the default configuration is unchanged. It runs the original notebook (kept in `tests/legacy/`) and the current code side by side with a scripted stand-in for the LLM, and requires that every prompt, in order, and the generated code are identical. It needs only `g++`:
+The reproducibility test (below) checks that the default configuration is unchanged.
 
-```bash
-python tests/test_reproducibility.py
-```
+## Testing
+
+The tests are plain Python scripts; run any of them directly.
+
+| Test | What it checks | Needs |
+|---|---|---|
+| `python tests/test_reproducibility.py` | With default settings, the current code sends exactly the same prompts, in the same order, and writes the same code as the original notebook (kept in `tests/legacy/`). Also covers the prompt dictionary, the notebook's shipped defaults, the command line, the optional features, run records, the self-correction limit and the program runner. The LLM is a scripted stand-in. | `g++` |
+| `python tests/test_backends.py` | The LLM backends (OpenAI-compatible, LM Studio, Argo, model listing, configuration errors) against small local fake servers. | nothing |
+| `python tests/test_gpu_smoke.py` | The real compile, run and timing path on a GPU in both directions: the CUDA reference with `nvcc`, the OpenMP reference offloaded to the GPU with `nvc++`, and the whole pipeline CUDA to OpenMP and OpenMP to CUDA (LLM still scripted). Skips itself if there is no GPU or compiler. | NVIDIA GPU, `nvcc`, `nvc++` |
+| `python tests/test_argo_smoke.py` | One small request through the real Argo backend. Skips itself unless `LASSI_ARGO_URL` and `LASSI_ARGO_USERNAME` are set. | Argonne network |
 
 ## Adding an Application
 

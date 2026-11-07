@@ -7,7 +7,7 @@ error and one execution error, so initial, compile-correction and execution-corr
 prompts are all exercised. Every prompt sent to the LLM must be identical, and so must the
 final code that is written. Requires only g++ (no GPU, model or network).
 
-Run:  python tests/test_reproducibility.py      (or: pytest tests)
+Run:  python tests/test_reproducibility.py
 """
 import os
 import shutil
@@ -309,13 +309,9 @@ def test_notebook_ships_paper_defaults():
 
 
 if __name__ == "__main__":
-    test_run_records()
-    test_max_self_corrections_and_cpu()
-    test_execute_code()
-    test_cli_matches_original()
-    test_cli_options_and_errors()
-    test_optional_features()
-    test_notebook_ships_paper_defaults()
-    test_prompt_dictionary_matches_original()
-    test_default_config_matches_original()
-    print("PASS: current LASSI (default config) sends exactly the same prompts as the original.")
+    for name, test in sorted(globals().items()):
+        if name.startswith("test_"):
+            test()
+            print(f"PASS  {name}")
+    print("\nAll reproducibility checks passed: with default settings the current LASSI sends exactly "
+          "the same prompts as the original.")

@@ -160,7 +160,7 @@ The reproducibility test (below) checks that the default configuration is unchan
 
 ## Testing
 
-The tests are plain Python scripts; run any of them directly.
+The tests are plain Python scripts; run any of them directly. To run them all at once, `pip install pytest` and then `pytest tests` (tests that need a GPU or Argo skip themselves when those are unavailable).
 
 | Test | What it checks | Needs |
 |---|---|---|

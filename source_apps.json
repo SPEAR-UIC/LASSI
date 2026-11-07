@@ -1,0 +1,83 @@
+{
+    "HeCBench": {
+        "source_folder": "HeCBench",
+        "matrix-rotate": {
+            "app_folder": "matrix-rotate",
+            "app_params": [
+                "10000",
+                "1"
+            ],
+            "code_lines": 107
+        },
+        "jacobi": {
+            "app_folder": "jacobi",
+            "app_params": [],
+            "code_lines": 235
+        },
+        "layout": {
+            "app_folder": "layout",
+            "app_params": [
+                "1"
+            ],
+            "code_lines": 197
+        },
+        "atomicCost": {
+            "app_folder": "atomicCost",
+            "app_params": [
+                "1"
+            ],
+            "code_lines": 116
+        },
+        "dense-embedding": {
+            "app_folder": "dense-embedding",
+            "app_params": [
+                "10000",
+                "8",
+                "1"
+            ],
+            "code_lines": 186
+        },
+        "pathfinder": {
+            "app_folder": "pathfinder",
+            "app_params": [
+                "10000",
+                "1000",
+                "1000"
+            ],
+            "code_lines": 287
+        },
+        "bsearch": {
+            "app_folder": "bsearch",
+            "app_params": [
+                "10000",
+                "1"
+            ],
+            "code_lines": 279
+        },
+        "entropy": {
+            "app_folder": "entropy",
+            "app_params": [
+                "10000",
+                "1024",
+                "1"
+            ],
+            "code_lines": 171
+        },
+        "colorwheel": {
+            "app_folder": "colorwheel",
+            "app_params": [
+                "10000",
+                "8",
+                "1"
+            ],
+            "code_lines": 154
+        },
+        "randomAccess": {
+            "app_folder": "randomAccess",
+            "app_params": [
+                "1"
+            ],
+            "code_lines": 166
+        }
+    }
+}

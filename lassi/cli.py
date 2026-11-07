@@ -63,6 +63,11 @@ def build_parser():
     g.add_argument("--compiler-flags", default=None, help="compiler flags as one quoted string (default: the paper's)")
     g.add_argument("--no-execute", dest="yes_execute", action="store_false",
                    help="only compile the generated code; do not execute it")
+    g.add_argument("--cpu", dest="cpu_only", action="store_true",
+                   help="compile OpenMP with g++ -fopenmp so everything runs on a CPU, no GPU or NVIDIA compiler "
+                        "(CUDA -> OMP only; --compiler/--compiler-flags still override)")
+    g.add_argument("--run-timeout", type=float, default=None, metavar="SECONDS",
+                   help="stop any program that runs longer than this (default: no limit)")
 
     g = p.add_argument_group("pipeline")
     g.add_argument("--no-context", dest="use_context", action="store_false",
@@ -76,6 +81,11 @@ def build_parser():
     g.add_argument("--judge-model", default=None, help="judge model on the same backend (default: same as --model)")
     g.add_argument("--record-results", action="store_true", help="append one row per trial to a results CSV")
     g.add_argument("--trials", type=int, default=defaults.total_trials, help="number of trials to run (default: %(default)s)")
+    g.add_argument("--timing-repeats", type=int, default=defaults.timing_repeats, metavar="N",
+                   help="time the reference and the translation N times each and report the mean; the paper "
+                        "used 3 (default: %(default)s)")
+    g.add_argument("--max-self-corrections", type=int, default=None, metavar="N",
+                   help="give up on a trial after N self-corrections (default: never give up, as in the paper)")
     return p
 
 
@@ -99,6 +109,8 @@ def config_from_args(args):
         experiment=args.experiment, display_response=args.display_response,
         use_judge=args.use_judge, model_judge=args.judge_model,
         record_results=args.record_results, total_trials=args.trials,
+        timing_repeats=args.timing_repeats, max_self_corrections=args.max_self_corrections,
+        run_timeout_s=args.run_timeout, cpu_only=args.cpu_only,
     )
 
 

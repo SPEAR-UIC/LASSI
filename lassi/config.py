@@ -20,6 +20,9 @@ _PAPER_COMPILERS = {
     "OMP":  ("nvc++", "-Wall -O3 -Minfo -mp=gpu -gpu=cc80"),
 }
 
+# Plain OpenMP on the CPU: the `target` pragmas fall back to the host, so no GPU or NVIDIA compiler is needed.
+_CPU_COMPILER = ("g++", "-fopenmp -O3")
+
 _EXTENSIONS = {"CUDA": "cu", "HIP": "cu", "OMP": "cpp", "SYCL": "cpp"}
 
 
@@ -58,6 +61,12 @@ class Config:
     model_judge: Optional[str] = None     # judge model on the same llm_source; None = `model`
     record_results: bool = False          # append a row per trial to a results CSV
     total_trials: int = 1                 # repeat the whole pipeline (e.g., for pass@k)
+    timing_repeats: int = 1               # runs used to time the reference and the translation
+                                          # (the paper averaged 3; extra runs happen after translation)
+    max_self_corrections: Optional[int] = None  # give up after this many self-corrections (None = never,
+                                          # as in the paper)
+    run_timeout_s: Optional[float] = None # stop a program that runs longer than this (None = no limit)
+    cpu_only: bool = False                # compile OpenMP with g++ -fopenmp so it runs on a CPU (target OMP only)
 
     # ---------------------------------------------------------------------------------
     def __post_init__(self):
@@ -68,6 +77,12 @@ class Config:
             raise ValueError("source_lang and target_lang must differ")
         if self.model_judge is None:
             self.model_judge = self.model
+        if self.cpu_only and self.target_lang != "OMP":
+            raise ValueError("cpu_only needs target_lang='OMP': CUDA code cannot be run without a GPU")
+        if self.timing_repeats < 1:
+            raise ValueError("timing_repeats must be at least 1")
+        if self.max_self_corrections is not None and self.max_self_corrections < 0:
+            raise ValueError("max_self_corrections must be 0 or more")
 
     @property
     def context_knowledge(self):
@@ -76,7 +91,7 @@ class Config:
 
     def resolved_compiler(self):
         """(compiler, flags): the user's choice, else the paper's for the target language."""
-        default = _PAPER_COMPILERS.get(self.target_lang, ("", ""))
+        default = _CPU_COMPILER if self.cpu_only else _PAPER_COMPILERS.get(self.target_lang, ("", ""))
         return (self.compiler if self.compiler is not None else default[0],
                 self.compiler_flags if self.compiler_flags is not None else default[1])
 

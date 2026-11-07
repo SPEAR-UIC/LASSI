@@ -150,6 +150,131 @@ def test_cli_options_and_errors():
     assert listing["exit_code"] == 0 and "randomAccess" in listing["output"]
 
 
+def test_execute_code():
+    """The runner times only the program, survives chatty stderr, and reports failures cleanly."""
+    import subprocess
+    import tempfile
+    assert shutil.which("g++"), "g++ is required for this test"
+    _stub_missing_modules()
+    sys.path.insert(0, REPO)
+    from lassi.runner import execute_code
+
+    with tempfile.TemporaryDirectory(prefix="lassi_exec_") as d:
+        def build(name, source):
+            path = os.path.join(d, name)
+            with open(path + ".cpp", "w") as f:
+                f.write(source)
+            subprocess.run(["g++", "-w", path + ".cpp", "-o", path], check=True)
+            return path
+
+        # Writes ~400 KB to stderr BEFORE any stdout: reading stdout to the end first would deadlock.
+        noisy = build("noisy", '#include <cstdio>\nint main(){for(int i=0;i<40000;i++)fprintf(stderr,"0123456789\\n");'
+                               'printf("done\\n");return 0;}')
+        res, out, runtime = execute_code(noisy, [], echo=False, timeout=60)
+        assert res == "0" and out == "done\n" and runtime is not None, (res, out, runtime)
+
+        # runtime covers the program, not the harness
+        sleeper = build("sleeper", '#include <unistd.h>\nint main(){usleep(300000);return 0;}')
+        res, out, runtime = execute_code(sleeper, [], echo=False)
+        assert res == "0" and 0.25 < runtime < 2.0, runtime
+
+        # a failing program: non-zero exit is reported with its stderr
+        failing = build("failing", '#include <cstdio>\nint main(){fprintf(stderr,"boom\\n");return 3;}')
+        res, out, runtime = execute_code(failing, [], echo=False)
+        assert res.startswith("Program exited with return code: 3") and "boom" in res, res
+
+        # a hung program is stopped by the timeout
+        hung = build("hung", '#include <unistd.h>\nint main(){sleep(30);return 0;}')
+        res, out, runtime = execute_code(hung, [], echo=False, timeout=1)
+        assert "Timed out" in res and runtime is None, (res, runtime)
+
+        # a missing executable is a failure, not an exception
+        res, out, runtime = execute_code(os.path.join(d, "missing"), [], echo=False)
+        assert res != "0" and runtime is None, res
+        assert os.getcwd() != d, "execute_code must restore the working directory"
+
+
+def test_run_records():
+    """record_results keeps every attempt, every LLM call and the environment, and times repeat runs."""
+    import csv
+    import io
+    import json
+    assert shutil.which("g++"), "g++ is required for this test"
+    r = run_current(record_results=True, timing_repeats=3)       # scenario "errors": 3 generated versions
+    assert r["completed"]
+
+    files = r["all_files"]
+    by_name = lambda name: [t for p, t in files.items() if os.path.basename(p) == name]
+    (attempts,) = by_name("attempts.json")
+    info = json.loads(attempts)
+    assert info["outcome"] == "success" and info["self_corrections"] == 2, info
+    assert [a["outcome"] for a in info["attempts"]] == ["compile_error", "execution_error", "success"], info
+    assert "undefined_symbol_xyz" in info["attempts"][0]["error"] and "boom" in info["attempts"][1]["error"]
+    assert all(any(os.path.basename(p) == f"attempt_{i}.cpp" for p in files) for i in range(3))
+
+    (env,) = by_name("environment.json")
+    env = json.loads(env)
+    assert env["model"] == "scripted-model" and env["compiler"] == "g++" and "g++" in env["compiler_version"], env
+
+    # every LLM call is logged with its prompt, response and purpose
+    calls = sorted(p for p in files if p.endswith("meta.json"))
+    assert len(calls) == len(r["transcript"]) == 5
+    intents = [json.loads(files[p])["intent"] for p in calls]
+    assert intents == ["context knowledge summary", "code description", "code generation",
+                       "code generation", "code generation"], intents
+    logged_prompt = files[calls[2].replace("meta.json", "prompt.txt")]
+    assert logged_prompt == r["transcript"][2][1]
+
+    # timing_repeats=3: one row, 3 runs averaged, spread reported
+    (csv_text,) = r["csv"].values()
+    (row,) = list(csv.DictReader(io.StringIO(csv_text)))
+    assert row["lassi_outcome"] == "success" and row["timing_repeats"] == "3", row
+    assert float(row["lassi_runtime_s"]) > 0 and row["lassi_runtime_stdev_s"] != "", row
+    assert float(row["target_orig_runtime_s"]) > 0 and row["target_orig_runtime_stdev_s"] != "", row
+
+    # nothing extra is written when recording is off
+    plain = run_current()
+    assert not any("records" in p for p in plain["all_files"]), "records written without record_results"
+
+
+def test_max_self_corrections_and_cpu():
+    """The optional self-correction limit ends a trial cleanly; --cpu picks the CPU compiler."""
+    import csv
+    import io
+    import json
+    assert shutil.which("g++"), "g++ is required for this test"
+    # scenario "errors" needs 2 self-corrections to succeed; allow only 1
+    r = run_current(record_results=True, max_self_corrections=1, total_trials=2)
+    assert not r["completed"]
+    (csv_text,) = r["csv"].values()
+    rows = list(csv.DictReader(io.StringIO(csv_text)))
+    # trial 1 gives up; trial 2 still runs afterwards (the scripted LLM now returns good code at once)
+    assert [row["lassi_outcome"] for row in rows] == ["gave_up", "success"], rows
+    assert rows[0]["lassi_compiled"] == "N" and rows[0]["lassi_judge_valid"] == "", rows[0]
+    (trial1,) = [t for p, t in r["all_files"].items() if p.endswith("attempts.json") and "_Trial1__" in p]
+    info = json.loads(trial1)
+    assert info["outcome"] == "gave_up" and [a["outcome"] for a in info["attempts"]] == ["compile_error", "execution_error"], info
+
+    # the default never gives up: same scenario with no limit succeeds
+    assert run_current()["completed"]
+
+    _stub_missing_modules()
+    sys.path.insert(0, REPO)
+    from lassi import Config
+    assert Config(cpu_only=True).resolved_compiler() == ("g++", "-fopenmp -O3")
+    assert Config().resolved_compiler()[0] == "nvc++"                      # paper default unchanged
+    assert Config(cpu_only=True, compiler="clang++").resolved_compiler()[0] == "clang++"
+    try:
+        Config(cpu_only=True, source_lang="OMP", target_lang="CUDA")
+        raise AssertionError("cpu_only with a CUDA target must be rejected")
+    except ValueError:
+        pass
+    # and through the CLI
+    out = run_cli(["--app", "layout", "--cpu", "--llm-source", "ollama", "--model", "scripted-model",
+                   "--exe-params", "1", "--quiet", "--max-self-corrections", "0", "--record-results"], scenario="clean")
+    assert out["exit_code"] == 0, out["output"][-400:]
+
+
 def test_notebook_ships_paper_defaults():
     """
     The notebook's config cell, run as shipped, must leave every paper setting at its default
@@ -184,6 +309,9 @@ def test_notebook_ships_paper_defaults():
 
 
 if __name__ == "__main__":
+    test_run_records()
+    test_max_self_corrections_and_cpu()
+    test_execute_code()
     test_cli_matches_original()
     test_cli_options_and_errors()
     test_optional_features()

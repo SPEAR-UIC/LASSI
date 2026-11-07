@@ -2,6 +2,7 @@
 import os
 import shlex
 import subprocess
+import threading
 import time
 
 from .format_colors import color
@@ -51,14 +52,26 @@ def compile_code(source_file, lang, code_compiler, code_compiler_kwds, include_d
     return return_result, output_file
 
 
-def execute_code(executable_file, exe_input_parameters):
+def execute_code(executable_file, exe_input_parameters, echo=True, timeout=None):
+    """
+    Run a compiled program from its own folder and capture what it prints.
 
+    Returns (result, stdout, runtime_seconds). `result` is "0" on success, otherwise a message
+    describing the failure. `runtime_seconds` is the wall-clock time of the program itself, from
+    process start to process exit (compile time and the time spent relaying output are not
+    included); it is None if the program could not be started.
+
+    echo:    print the program's output as it arrives (False for quiet repeat runs)
+    timeout: kill the program after this many seconds and report a failure (None = no limit)
+    """
     # Capture current directory to switch back after code execution
     initial_dir = os.getcwd()
 
-    # Defaults, so a missing executable is reported as a failure instead of raising NameError
     return_code = -1
     runtime = None
+    stdout_lines = []
+    stderr_lines = []
+    exception_error = ""
 
     # Extract the compiled program to execute
     directory_path = os.path.dirname(executable_file)
@@ -72,83 +85,71 @@ def execute_code(executable_file, exe_input_parameters):
 
     # Build execute command
     execute_command = ['./' + executable] + exe_input_parameters
-    print("Execute command: " + str(execute_command) + "\n")
+    if echo:
+        print("Execute command: " + str(execute_command) + "\n")
 
-    # Execute the binary object with input parameters, if provided
-     
-    # Ensure the file is open and available before executing
+    # Ensure the file is available before executing
     if os.path.exists(executable):
         try:
-            # Open the file to ensure it is accessible
-            with open(executable, 'rb') as code_file:
-                # Start the process
-                start_runtime = time.time()
-                process = subprocess.Popen(execute_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                stdout_lines = []
-                stderr_lines = []
-                exception_error = ""
-                
-                # Print the output in real-time
-                try:
-                    # Read stdout in a separate thread or in a non-blocking way
-                    while True:
-                        line = process.stdout.readline()
-                        if not line:
-                            break
-                        print(line, end='')  # Print each line as it is received
-                        stdout_lines.append(line)
-                    process.stdout.close()
-            
-                    # Read stderr in a separate thread or in a non-blocking way
-                    while True:
-                        line = process.stderr.readline()
-                        if not line:
-                            break
-                        stderr_lines.append(line)
-                    process.stderr.close()
-                
-                    # Wait for the process to complete and get the return code
-                    return_code = process.wait()
-                    runtime = round(time.time() - start_runtime, 4)  # wall-clock seconds
-                    
-                    if return_code != 0:
-                        error_output = ''.join(stderr_lines)
-                        print("Program Execution Error:", error_output)
+            start_runtime = time.perf_counter()
+            process = subprocess.Popen(execute_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-                except Exception as e:
-                    print("An error occurred while executing the program: ", e)
-                    exception_error = str(e)
-        except IOError as e:
-            print(f"Pipeline error | An I/O error occurred: {e.strerror}")
+            # Drain both streams at the same time so neither pipe can fill up and stall the program.
+            def drain(stream, lines, show):
+                for line in stream:
+                    if show:
+                        print(line, end='')  # Print each line as it is received
+                    lines.append(line)
+                stream.close()
+
+            readers = [threading.Thread(target=drain, args=(process.stdout, stdout_lines, echo), daemon=True),
+                       threading.Thread(target=drain, args=(process.stderr, stderr_lines, False), daemon=True)]
+            for reader in readers:
+                reader.start()
+
+            try:
+                return_code = process.wait(timeout=timeout)
+                runtime = round(time.perf_counter() - start_runtime, 4)  # wall-clock seconds, process only
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                exception_error = f"Timed out after {timeout} seconds and was stopped."
+            for reader in readers:
+                reader.join()
+
+            if return_code != 0 and echo:
+                print("Program Execution Error:", ''.join(stderr_lines))
         except Exception as e:
             print(f"Pipeline error | An error occurred: {e}")
+            exception_error = str(e)
     else:
         print(f"Pipeline error | The file {executable} does not exist.")
-    
-    
+
     # Check if the program ran successfully
     return_result = "0"  # default OK
     if return_code == 0:
-        print("\n" + color.BOLD + "Program executed successfully!" + color.END)
+        if echo:
+            print("\n" + color.BOLD + "Program executed successfully!" + color.END)
     else:
         # If there was an error during execution, print the error message
         return_result = "Program exited with return code: " + str(return_code) + " "
         if return_code == -11:
             return_result += "Segmentation fault detected."
         stderr_output = ''.join(stderr_lines)
-        # stdout_output = ''.join(stdout_lines)
-        # if stdout_output:
-        #    return_result += "\nStandard Output: " + stdout_output
         if exception_error != "":
             return_result += "\nException Error: " + exception_error
         if stderr_output:
             return_result += "\nStandard Error: " + stderr_output
-        print("\n" + color.BOLD + color.RED + "***** Execution failed." + color.END)
-        print("Error message: ")
-        print(return_result)
-    
+        if echo:
+            print("\n" + color.BOLD + color.RED + "***** Execution failed." + color.END)
+            print("Error message: ")
+            print(return_result)
+
     os.chdir(initial_dir)
 
     stdout_output = ''.join(stdout_lines)
-    
+
+    if echo and runtime is not None:
+        print("\nProgram runtime (s): " + str(runtime) + "\n")
+
     return return_result, stdout_output, runtime

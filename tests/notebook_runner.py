@@ -93,6 +93,21 @@ def _collect_outputs(work, suffix=".cpp"):
     return files
 
 
+def _collect_all(work):
+    """Every text file produced under translated_code/ (not the input sources), by relative path."""
+    out = {}
+    for root, _, names in os.walk(os.path.join(work, "translated_code")):
+        if "input_codes" in root:
+            continue
+        for n in names:
+            p = os.path.join(root, n)
+            try:
+                out[os.path.relpath(p, work)] = open(p).read()
+            except UnicodeDecodeError:      # compiled binary
+                pass
+    return out
+
+
 def _workdir(work, app, modules_from=None):
     """A scratch working copy: the app's source folder (no compiled binaries), plus legacy modules."""
     src_dir = os.path.join(REPO, "translated_code", "input_codes", "HeCBench", app)
@@ -171,7 +186,8 @@ def run_current(app="layout", app_args=("1",), package_root=None, scenario="erro
                 outcomes = lassi.run_experiment(cfg)
             return {"transcript": transcript, "files": _collect_outputs(work),
                     "completed": bool(outcomes) and all(outcomes), "defaults": defaults,
-                    "csv": _collect_outputs(work, ".csv"), "metadata": _collect_outputs(work, ".txt")}
+                    "csv": _collect_outputs(work, ".csv"), "metadata": _collect_outputs(work, ".txt"),
+                    "all_files": _collect_all(work)}
 
 
 def run_cli(argv, app="layout", scenario="errors"):
@@ -196,4 +212,5 @@ def run_cli(argv, app="layout", scenario="errors"):
                 except SystemExit as e:        # argparse exits (help, usage errors)
                     code = e.code
             return {"exit_code": code, "output": out.getvalue(), "transcript": transcript,
-                    "files": _collect_outputs(work), "csv": _collect_outputs(work, ".csv")}
+                    "files": _collect_outputs(work), "csv": _collect_outputs(work, ".csv"),
+                    "all_files": _collect_all(work)}

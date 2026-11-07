@@ -14,7 +14,7 @@ import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from notebook_runner import REPO, _stub_missing_modules, run_current, run_legacy
+from notebook_runner import REPO, _stub_missing_modules, run_cli, run_current, run_legacy
 
 LEGACY = os.path.join(REPO, "tests", "legacy", "LASSI_pipeline_v0_original.ipynb")
 
@@ -111,6 +111,45 @@ def test_optional_features():
     assert not any("Judge" in t for t in d["metadata"].values())
 
 
+# Machine-specific settings the tests must pin (the paper's compiler needs nvc++ / a GPU)
+_CLI_BASE = ["--app", "layout", "--llm-source", "ollama", "--model", "scripted-model", "--num-ctx", "4096",
+             "--compiler", "g++", "--compiler-flags", "-fopenmp -O1", "--exe-params", "1",
+             "--experiment", "test", "--quiet"]
+
+
+def test_cli_matches_original():
+    """`run_lassi.py` with no optional flags sends exactly the prompts the original notebook did."""
+    assert shutil.which("g++"), "g++ is required for this test"
+    legacy = run_legacy(LEGACY)
+    cli = run_cli(_CLI_BASE)
+    assert cli["exit_code"] == 0, cli["output"][-500:]
+    assert cli["transcript"] == legacy["transcript"], "CLI prompts differ from the original"
+    assert list(cli["files"].values()) == list(legacy["files"].values()), "CLI generated code differs"
+
+
+def test_cli_options_and_errors():
+    import csv
+    import io
+    assert shutil.which("g++"), "g++ is required for this test"
+
+    r = run_cli(_CLI_BASE + ["--judge", "--judge-model", "scripted-judge", "--record-results", "--trials", "2"],
+                scenario="clean")
+    assert r["exit_code"] == 0, r["output"][-500:]
+    (csv_text,) = r["csv"].values()
+    rows = list(csv.DictReader(io.StringIO(csv_text)))
+    assert len(rows) == 2 and all(row["lassi_judge_valid"] == "VALID" for row in rows), rows
+
+    # usage errors exit non-zero with a message, and never run the pipeline
+    bad = run_cli(["--app", "no-such-app", "--compiler", "g++"], scenario="clean")
+    assert bad["exit_code"] == 2 and "Unknown app" in bad["output"] and not bad["transcript"], bad["output"]
+    assert run_cli(["--source", "CUDA", "--target", "CUDA"], scenario="clean")["exit_code"] == 2
+    assert run_cli(["--trials", "0"] + _CLI_BASE, scenario="clean")["exit_code"] == 2
+    assert run_cli(["--help"])["exit_code"] == 0
+
+    listing = run_cli(["--list-apps"])
+    assert listing["exit_code"] == 0 and "randomAccess" in listing["output"]
+
+
 def test_notebook_ships_paper_defaults():
     """
     The notebook's config cell, run as shipped, must leave every paper setting at its default
@@ -145,6 +184,8 @@ def test_notebook_ships_paper_defaults():
 
 
 if __name__ == "__main__":
+    test_cli_matches_original()
+    test_cli_options_and_errors()
     test_optional_features()
     test_notebook_ships_paper_defaults()
     test_prompt_dictionary_matches_original()

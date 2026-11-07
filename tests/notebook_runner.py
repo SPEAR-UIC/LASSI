@@ -172,3 +172,28 @@ def run_current(app="layout", app_args=("1",), package_root=None, scenario="erro
             return {"transcript": transcript, "files": _collect_outputs(work),
                     "completed": bool(outcomes) and all(outcomes), "defaults": defaults,
                     "csv": _collect_outputs(work, ".csv"), "metadata": _collect_outputs(work, ".txt")}
+
+
+def run_cli(argv, app="layout", scenario="errors"):
+    """Run `python run_lassi.py <argv>` in-process in a temporary working copy, with the scripted LLM."""
+    _stub_missing_modules()
+    transcript, llm = _scripted_llm(app, "OMP", scenario)
+
+    with tempfile.TemporaryDirectory(prefix="lassi_cli_") as work:
+        _workdir(work, app)
+        with _Sandbox(work):
+            sys.path.insert(0, REPO)
+            for m in [m for m in sys.modules if m == "lassi" or m.startswith("lassi.")]:
+                del sys.modules[m]
+            from lassi import llm_backends
+            from lassi.cli import main
+            llm_backends.call_llm = lambda src, model, ctx, sys_p, user_p, *a, **k: llm(sys_p, user_p)
+            llm_backends.unload_ollama_model = lambda model: None
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                try:
+                    code = main(argv)
+                except SystemExit as e:        # argparse exits (help, usage errors)
+                    code = e.code
+            return {"exit_code": code, "output": out.getvalue(), "transcript": transcript,
+                    "files": _collect_outputs(work), "csv": _collect_outputs(work, ".csv")}

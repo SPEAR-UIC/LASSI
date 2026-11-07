@@ -432,6 +432,17 @@ class Experiment:
     results_csv: str = None
 
 
+def _require_file(path, app, source_root):
+    """Fail with a helpful message (not a bare FileNotFoundError) if an application's file is missing."""
+    if os.path.isfile(path):
+        return
+    apps_dir = os.path.join(source_root, "HeCBench")
+    available = sorted(d for d in os.listdir(apps_dir) if os.path.isdir(os.path.join(apps_dir, d))) \
+        if os.path.isdir(apps_dir) else []
+    raise ValueError(f"Unknown app {app!r}: cannot find {path}. Available applications: "
+                     f"{', '.join(available) or '(none found)'}")
+
+
 def prepare_experiment(cfg, source_root="translated_code/input_codes"):
     """Load the source and reference code, and build the prompts, for the configured experiment."""
     # Load the prompt dictionary here (not at import) so edits to it are picked up
@@ -453,6 +464,7 @@ def prepare_experiment(cfg, source_root="translated_code/input_codes"):
     input_code_extension = cfg.extension(source_lang)
     source_file_directory = source_root + "/" + input_code_folder
     source_file_path = source_file_directory + input_code_filename + "." + input_code_extension
+    _require_file(source_file_path, cfg.app, source_root)
     with open(source_file_path, 'r') as file:
         input_code = file.read()
 
@@ -460,6 +472,7 @@ def prepare_experiment(cfg, source_root="translated_code/input_codes"):
     target_code_filename = cfg.app + "-" + target_lang.lower() + "_main"
     translated_code_extension = cfg.extension(target_lang)
     target_file_path = source_file_directory + target_code_filename + "." + translated_code_extension
+    _require_file(target_file_path, cfg.app, source_root)
     with open(target_file_path, 'r') as file:
         target_code = file.read()
 

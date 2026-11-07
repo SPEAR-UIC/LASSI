@@ -1,0 +1,125 @@
+"""
+Command-line interface for LASSI.
+
+    python run_lassi.py --app jacobi --source CUDA --target OMP --llm-source ollama --model <name>
+
+With no optional flags this runs the pipeline of the original LASSI paper. It builds the same
+Config and calls the same run_experiment() as the notebook, so the two never diverge.
+"""
+import argparse
+import os
+import shlex
+import sys
+
+from . import llm_backends
+from .config import Config, load_apps
+from .pipeline import run_experiment
+
+
+def build_parser():
+    defaults = Config()
+    p = argparse.ArgumentParser(
+        prog="run_lassi.py",
+        description="LASSI: translate a HeCBench application between CUDA and OpenMP (GPU offload) with an LLM, "
+                    "self-correcting from compiler and runtime errors. Defaults reproduce the original paper.",
+        epilog="Backend connection settings can also come from environment variables: OPENAI_API_KEY, "
+               "OPENAI_BASE_URL, LASSI_ARGO_URL, LASSI_ARGO_USERNAME, OLLAMA_HOST.")
+
+    g = p.add_argument_group("what to translate")
+    g.add_argument("--app", default=defaults.app, help="HeCBench application folder name (default: %(default)s)")
+    g.add_argument("--source", dest="source_lang", default=defaults.source_lang, choices=["CUDA", "OMP"],
+                   help="source language (default: %(default)s)")
+    g.add_argument("--target", dest="target_lang", default=defaults.target_lang, choices=["CUDA", "OMP"],
+                   help="target language (default: %(default)s)")
+    g.add_argument("--exe-params", default=None,
+                   help="command-line arguments for the program as one quoted string, e.g. \"10000 8 1\" "
+                        "(default: from source_apps.json)")
+    g.add_argument("--list-apps", action="store_true", help="list the available applications and exit")
+
+    g = p.add_argument_group("LLM")
+    g.add_argument("--llm-source", default=defaults.llm_source, choices=list(llm_backends.LLM_SOURCES),
+                   help="LLM backend (default: %(default)s)")
+    g.add_argument("--model", default=defaults.model, help="model name (default: %(default)s)")
+    g.add_argument("--num-ctx", type=int, default=defaults.num_ctx,
+                   help="context window in tokens, ollama only (default: %(default)s)")
+    g.add_argument("--ollama-host", default=os.environ.get("OLLAMA_HOST"),
+                   help="Ollama server URL (default: local server)")
+    g.add_argument("--lmstudio-url", default=llm_backends.lmstudio_base_url,
+                   help="LM Studio server URL (default: %(default)s)")
+    g.add_argument("--openai-url", default=os.environ.get("OPENAI_BASE_URL", llm_backends.openai_base_url),
+                   help="OpenAI-compatible endpoint base URL (default: %(default)s)")
+    g.add_argument("--openai-api-key", default=None,
+                   help="API key for the OpenAI-compatible endpoint (prefer the OPENAI_API_KEY environment "
+                        "variable so the key does not end up in your shell history)")
+    g.add_argument("--argo-url", default=os.environ.get("LASSI_ARGO_URL"),
+                   help="Argo Gateway streamchat URL (Argonne network only)")
+    g.add_argument("--argo-username", default=os.environ.get("LASSI_ARGO_USERNAME"),
+                   help="your Argonne domain username, used as the Argo key (not a secret)")
+    g.add_argument("--argo-ca-bundle", default=None,
+                   help="path to a CA certificate bundle for the Argo gateway's TLS certificate")
+
+    g = p.add_argument_group("compiling and running")
+    g.add_argument("--compiler", default=None, help="compiler for the target language (default: the paper's)")
+    g.add_argument("--compiler-flags", default=None, help="compiler flags as one quoted string (default: the paper's)")
+    g.add_argument("--no-execute", dest="yes_execute", action="store_false",
+                   help="only compile the generated code; do not execute it")
+
+    g = p.add_argument_group("pipeline")
+    g.add_argument("--no-context", dest="use_context", action="store_false",
+                   help="skip the language-knowledge context and self-prompting")
+    g.add_argument("--experiment", default=defaults.experiment, help="label used in output file names (default: %(default)s)")
+    g.add_argument("--quiet", dest="display_response", action="store_false", help="do not echo LLM responses")
+
+    g = p.add_argument_group("optional extras (all off by default)")
+    g.add_argument("--judge", dest="use_judge", action="store_true",
+                   help="ask an LLM whether the final translation is functionally equivalent to the reference")
+    g.add_argument("--judge-model", default=None, help="judge model on the same backend (default: same as --model)")
+    g.add_argument("--record-results", action="store_true", help="append one row per trial to a results CSV")
+    g.add_argument("--trials", type=int, default=defaults.total_trials, help="number of trials to run (default: %(default)s)")
+    return p
+
+
+def config_from_args(args):
+    """Turn parsed arguments into a Config (applies the backend connection settings as a side effect)."""
+    llm_backends.configure(
+        ollama_host=args.ollama_host,
+        lmstudio_base_url=args.lmstudio_url,
+        openai_base_url=args.openai_url,
+        openai_api_key=args.openai_api_key or "",
+        argo_url=args.argo_url or "",
+        argo_username=args.argo_username or "",
+        argo_verify=args.argo_ca_bundle if args.argo_ca_bundle else True,
+    )
+    return Config(
+        app=args.app, source_lang=args.source_lang, target_lang=args.target_lang,
+        exe_params=shlex.split(args.exe_params) if args.exe_params is not None else None,
+        llm_source=args.llm_source, model=args.model, num_ctx=args.num_ctx,
+        use_context=args.use_context, yes_execute=args.yes_execute,
+        compiler=args.compiler, compiler_flags=args.compiler_flags,
+        experiment=args.experiment, display_response=args.display_response,
+        use_judge=args.use_judge, model_judge=args.judge_model,
+        record_results=args.record_results, total_trials=args.trials,
+    )
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.list_apps:
+        for name, info in sorted(load_apps().items()):
+            print(f"{name:18s} params: {' '.join(info['app_params']) or '(none)':26s} {info['code_lines']} lines")
+        return 0
+
+    try:
+        cfg = config_from_args(args)
+        if cfg.total_trials < 1:
+            parser.error("--trials must be at least 1")
+        outcomes = run_experiment(cfg)
+    except (ValueError, FileNotFoundError) as e:
+        parser.exit(2, f"error: {e}\n")
+    return 0 if outcomes and all(outcomes) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

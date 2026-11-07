@@ -12,16 +12,16 @@ One entry point, ``call_llm()``, dispatches to one of four backends selected by 
     "argo"               Argonne National Laboratory's Argo Gateway (Argonne network
                          access only). Uses the gateway's native "streamchat" API.
 
-Nothing in this module is hardcoded to a particular host, user or key. Connection
-details are set with ``configure()`` (or by assigning the module globals below), and
-secrets are read from environment variables when they are left blank:
+Nothing in this module is hardcoded to a particular host, user or key. Connection details come from
+config.yaml (copy config.yaml.example; it is not tracked by git, so it is a safe place for an API key),
+with ``configure()`` / command-line flags overriding it and environment variables as a fallback:
 
-    OPENAI_API_KEY   used by "openai_compatible" when ``openai_api_key`` is empty
+    OPENAI_API_KEY, OPENAI_BASE_URL, LASSI_ARGO_URL, LASSI_ARGO_USERNAME, OLLAMA_HOST
 
 Example::
 
-    import llm_backends as llm
-    llm.configure(openai_base_url="https://api.openai.com/v1")      # key from $OPENAI_API_KEY
+    from lassi import llm_backends as llm
+    llm.configure(openai_base_url="https://api.openai.com/v1", openai_api_key="...")   # or put these in config.yaml
     text = llm.call_llm("openai_compatible", "gpt-4.1-mini", 0, "You are helpful.", "Hello")
 
 Argo Gateway note: an Argo "API key" is just your Argonne domain username, so it is
@@ -37,26 +37,36 @@ import subprocess
 
 import requests
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_FILENAME = "config.yaml"
+
 # ----------------------------------------------------------------------------
 # Connection settings -- set via configure() or by assigning these globals.
 # ----------------------------------------------------------------------------
 
-# Ollama: None means the ollama client's default (http://localhost:11434, or $OLLAMA_HOST).
-ollama_host = None
+# Where each setting comes from, highest priority first:
+#   1. an explicit call to configure() / a command-line flag
+#   2. config.yaml (loaded automatically; see config.yaml.example)
+#   3. an environment variable (named beside each setting below)
+#   4. the built-in default
+# The values below are levels 3 and 4; load_config_file() applies level 2 when lassi is imported.
+
+# Ollama: None means the ollama client's default (http://localhost:11434).  [env: OLLAMA_HOST]
+ollama_host = os.environ.get("OLLAMA_HOST") or None
 
 # LM Studio's local OpenAI-compatible server.
 lmstudio_base_url = "http://localhost:1234/v1"
 
-# Generic OpenAI-compatible backend. If openai_api_key is blank, $OPENAI_API_KEY is used.
-openai_base_url = "https://api.openai.com/v1"
+# Generic OpenAI-compatible backend.  [env: OPENAI_BASE_URL; OPENAI_API_KEY is used if the key is blank]
+openai_base_url = os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
 openai_api_key = ""
 
 # Argo Gateway (native streamchat API). Both must be provided by the user:
 #   argo_url      full URL of the streamchat resource, i.e. "https://<gateway-host>/argoapi/api/v1/resource/streamchat/"
 #   argo_username your Argonne domain username (identifies you to the gateway; not a secret)
 # argo_verify controls TLS certificate checking: True (default), False, or a path to a CA bundle.
-argo_url = ""
-argo_username = ""
+argo_url = os.environ.get("LASSI_ARGO_URL", "")            # [env: LASSI_ARGO_URL]
+argo_username = os.environ.get("LASSI_ARGO_USERNAME", "")  # [env: LASSI_ARGO_USERNAME]
 argo_verify = True
 
 # Seconds to wait on a single LLM response before giving up.
@@ -78,6 +88,72 @@ def configure(**kwargs):
         if name not in _SETTINGS:
             raise ValueError(f"Unknown setting {name!r}; valid settings: {', '.join(_SETTINGS)}")
         globals()[name] = value
+
+
+# config.yaml layout: {section: {key: the setting it sets}}
+_CONFIG_FILE_KEYS = {
+    "ollama":            {"host": "ollama_host"},
+    "lmstudio":          {"base_url": "lmstudio_base_url"},
+    "openai_compatible": {"base_url": "openai_base_url", "api_key": "openai_api_key"},
+    "argo":              {"url": "argo_url", "username": "argo_username", "ca_bundle": "argo_verify"},
+}
+
+
+def find_config_file(path=None):
+    """
+    Locate the config file: an explicit `path`, else $LASSI_CONFIG (an empty value means "use no
+    config file"), else ./config.yaml, else config.yaml next to this repository's lassi/ folder.
+    Returns None when there is none. An explicit path that does not exist is an error.
+    """
+    explicit = path if path is not None else os.environ.get("LASSI_CONFIG")
+    if explicit is not None:
+        if explicit == "":
+            return None
+        if not os.path.isfile(explicit):
+            raise FileNotFoundError(f"config file not found: {explicit}")
+        return explicit
+    for candidate in (os.path.join(os.getcwd(), CONFIG_FILENAME), os.path.join(_REPO_ROOT, CONFIG_FILENAME)):
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def load_config_file(path=None):
+    """
+    Apply the connection settings in config.yaml (copy config.yaml.example to start). Blank values
+    are ignored, so a half-filled file never wipes out an environment variable. Returns the path
+    that was loaded, or None if there is no config file.
+    """
+    found = find_config_file(path)
+    if not found:
+        return None
+    try:
+        import yaml
+    except ImportError as e:
+        raise ImportError(f"{found} needs PyYAML to be read: pip install pyyaml") from e
+    with open(found) as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"{found}: expected sections such as 'argo:' and 'openai_compatible:'")
+
+    updates = {}
+    for section, entries in data.items():
+        if section not in _CONFIG_FILE_KEYS:
+            raise ValueError(f"{found}: unknown section {section!r}; valid sections: {', '.join(_CONFIG_FILE_KEYS)}")
+        if entries is None:
+            continue
+        if not isinstance(entries, dict):
+            raise ValueError(f"{found}: section {section!r} must contain 'key: value' lines")
+        for key, value in entries.items():
+            if key not in _CONFIG_FILE_KEYS[section]:
+                raise ValueError(f"{found}: unknown setting {section}.{key}; valid: {', '.join(_CONFIG_FILE_KEYS[section])}")
+            if value in (None, ""):
+                continue
+            if not isinstance(value, str):
+                raise ValueError(f"{found}: {section}.{key} must be text (put quotes around it)")
+            updates[_CONFIG_FILE_KEYS[section][key]] = value
+    configure(**updates)
+    return found
 
 
 # ----------------------------------------------------------------------------

@@ -1,11 +1,16 @@
 """
 Argo Gateway smoke test: one tiny request through the real `argo` backend.
 
-Skipped unless you configure it (Argonne network access is required). Nothing here is hardcoded:
+Skipped unless Argo is configured (Argonne network access is required). Configure it the way you
+normally would, in config.yaml:
 
-    export LASSI_ARGO_URL=<the gateway's streamchat URL>
-    export LASSI_ARGO_USERNAME=<your Argonne username>       # not a secret
-    export LASSI_ARGO_MODEL=gpt4o                            # optional, default gpt4o
+    argo:
+      url: "<the gateway's streamchat URL>"
+      username: "<your Argonne username>"      # not a secret
+
+or with the environment variables LASSI_ARGO_URL and LASSI_ARGO_USERNAME. Optionally set
+LASSI_ARGO_MODEL (default gpt4o). Nothing is hardcoded in the repository.
+
     python tests/test_argo_smoke.py
 """
 import os
@@ -13,18 +18,23 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from notebook_runner import REPO, _stub_missing_modules
+from notebook_runner import REPO, USER_LASSI_CONFIG, _stub_missing_modules
+
+# The shared test runner isolates tests from config.yaml; this test is the one that needs it.
+if USER_LASSI_CONFIG is None:
+    os.environ.pop("LASSI_CONFIG", None)
+else:
+    os.environ["LASSI_CONFIG"] = USER_LASSI_CONFIG
 
 
 def test_argo_round_trip():
-    url, user = os.environ.get("LASSI_ARGO_URL"), os.environ.get("LASSI_ARGO_USERNAME")
-    if not (url and user):
-        raise unittest.SkipTest("set LASSI_ARGO_URL and LASSI_ARGO_USERNAME to run this test")
     _stub_missing_modules()
     sys.path.insert(0, REPO)
     from lassi import llm_backends
 
-    llm_backends.configure(argo_url=url, argo_username=user)
+    if not (llm_backends.argo_url and llm_backends.argo_username):
+        raise unittest.SkipTest("Argo is not configured: set argo.url and argo.username in config.yaml "
+                                "(or LASSI_ARGO_URL and LASSI_ARGO_USERNAME)")
     reply = llm_backends.call_llm("argo", os.environ.get("LASSI_ARGO_MODEL", "gpt4o"), 0,
                                   "You are terse.", "Reply with the single word PONG.")
     assert "PONG" in reply.upper(), reply

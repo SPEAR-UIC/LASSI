@@ -17,6 +17,11 @@ import types
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Tests must never pick up a developer's own config.yaml (it may hold a real API key): an empty
+# LASSI_CONFIG means "use no config file". The config-file tests set it themselves.
+USER_LASSI_CONFIG = os.environ.get("LASSI_CONFIG")      # what the person running the tests had set, if anything
+os.environ["LASSI_CONFIG"] = ""
+
 # Order of the values returned by experimental_setup() in the original notebook
 _SETUP_FIELDS = ("app_folder_name", "source_lang", "target_lang", "model", "num_ctx", "llm_source",
                  "use_context", "context_knowledge_selection", "code_compiler", "code_compiler_kwds",

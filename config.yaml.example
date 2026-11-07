@@ -1,0 +1,33 @@
+# LASSI connection settings: how to reach the LLM you want to use.
+#
+#   1. Copy this file to config.yaml (in this folder):    cp config.yaml.example config.yaml
+#   2. Fill in the section for the backend you use. Leave the others blank.
+#
+# config.yaml is listed in .gitignore, so it is not committed to git. That makes it a reasonable
+# place for an API key; still, treat the file as private and do not share or paste it.
+#
+# Which backend and model a run uses is chosen separately: --llm-source / --model on the command
+# line, or llm_source / model in the notebook. This file only says where each backend lives.
+#
+# Priority, highest first: command-line flag, then this file, then an environment variable, then
+# the built-in default. Blank values below are ignored.
+
+# Local Ollama server (https://ollama.com). Blank = the local default, http://localhost:11434
+ollama:
+  host: ""
+
+# Local LM Studio server. Blank = the default, http://localhost:1234/v1
+lmstudio:
+  base_url: ""
+
+# Any server that speaks the OpenAI API: OpenAI itself, vLLM, llama.cpp, OpenRouter, an
+# institutional gateway, ...
+openai_compatible:
+  base_url: "https://api.openai.com/v1"
+  api_key: ""            # paste your key between the quotes, e.g. "sk-..."
+
+# Argonne National Laboratory's Argo Gateway (reachable only from the Argonne network).
+argo:
+  url: ""                # the gateway's "streamchat" URL
+  username: ""           # your Argonne domain username. This is not a secret.
+  ca_bundle: ""          # optional: path to a CA certificate file if the gateway's certificate is not trusted

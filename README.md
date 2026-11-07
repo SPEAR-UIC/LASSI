@@ -39,6 +39,7 @@ The defaults reproduce the paper (see [Reproducing the paper](#reproducing-the-p
 - `LASSI_pipeline.ipynb`: the notebook front end. Edit one configuration cell and run.
 - `run_lassi.py`: the command-line front end. It uses exactly the same code as the notebook.
 - `lassi/`: the core package: `config.py` (all settings, with the paper's defaults), `pipeline.py`, `runner.py` (compile, execute, time), `metrics.py` (code similarity), `llm_backends.py`, `prompt_dictionary.py`
+- `config.yaml.example`: template for your LLM connection settings (copy it to `config.yaml`, which git ignores)
 - `source_apps.json`: the applications and their run parameters
 - `translated_code/input_codes/HeCBench/`: the benchmark sources, one folder per application, in CUDA (`<app>-cuda_main.cu`) and OpenMP (`<app>-omp_main.cpp`)
 - `translated_code/<llm_source>_<model>/`: where LASSI writes its output (created on first run, not tracked by git)
@@ -90,16 +91,32 @@ For a different GPU change the `-arch` / `-gpu` flag and, if the compiler is not
 
 ### LLM backend setup
 
-Choose the backend with `--llm-source` (CLI) or `llm_source` (notebook). Only the one you choose is used.
+**1. Create your settings file.** Copy the template and fill in the part for the backend you use:
+
+```bash
+cp config.yaml.example config.yaml        # on Windows: copy config.yaml.example config.yaml
+```
+
+`config.yaml` is where LASSI looks for the LLM's address and credentials. It is listed in `.gitignore`, so it is not committed to git, which makes it a reasonable place for an API key (still, keep the file private). The notebook and the command line both read it automatically.
+
+```yaml
+openai_compatible:
+  base_url: "https://api.openai.com/v1"
+  api_key: "sk-..."                # paste your key between the quotes
+```
+
+**2. Choose the backend and model** for each run with `--llm-source` and `--model` on the command line, or `llm_source` and `model` in the notebook. Only the backend you choose is used.
 
 | Backend | Who can use it | What you need |
 |---|---|---|
-| `ollama` (default) | Anyone with a local [Ollama](https://ollama.com) server | `ollama serve`, then `ollama pull <model>` |
+| `ollama` (default) | Anyone with a local [Ollama](https://ollama.com) server | `ollama serve`, then `ollama pull <model>`. Set `ollama.host` only if the server is not local. |
 | `lmstudio` | Anyone with [LM Studio](https://lmstudio.ai) | start its local server in the app; set `--model` to the model's name |
-| `openai_compatible` | Anyone: OpenAI, vLLM, llama.cpp server, OpenRouter, an institutional gateway, ... | `--openai-url` (default `https://api.openai.com/v1`) and an API key in the `OPENAI_API_KEY` environment variable |
-| `argo` | Argonne National Laboratory staff only | the gateway's `--argo-url` and your Argonne username as `--argo-username` (the "key" is just your username, not a secret) |
+| `openai_compatible` | Anyone: OpenAI, vLLM, llama.cpp server, OpenRouter, an institutional gateway, ... | `openai_compatible.base_url` and `openai_compatible.api_key` in `config.yaml` |
+| `argo` | Argonne National Laboratory staff only | `argo.url` (the gateway's streamchat URL) and `argo.username` (your Argonne username; it is not a secret) |
 
-Settings may also be given as environment variables: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `LASSI_ARGO_URL`, `LASSI_ARGO_USERNAME`, `OLLAMA_HOST`. Some models, such as OpenAI's reasoning models, reject a custom `temperature` or `top_p`; LASSI detects that, drops the parameter, and remembers it for the rest of the run.
+Where each setting comes from, highest priority first: a command-line flag (`--openai-url`, `--openai-api-key`, `--argo-url`, `--argo-username`, ...), then `config.yaml`, then an environment variable (`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `LASSI_ARGO_URL`, `LASSI_ARGO_USERNAME`, `OLLAMA_HOST`), then the built-in default. Blank values in `config.yaml` are ignored. Use `--config FILE` (or the `LASSI_CONFIG` environment variable) to read a settings file from somewhere else.
+
+Some models, such as OpenAI's reasoning models, reject a custom `temperature` or `top_p`; LASSI detects that, drops the parameter, and remembers it for the rest of the run.
 
 ## Running LASSI
 
@@ -110,8 +127,7 @@ Settings may also be given as environment variables: `OPENAI_API_KEY`, `OPENAI_B
 python run_lassi.py --app layout --source CUDA --target OMP \
     --llm-source ollama --model codestral:22b-v0.1-q8_0
 
-# The same through any OpenAI-compatible endpoint
-export OPENAI_API_KEY=...
+# The same through any OpenAI-compatible endpoint (address and key come from config.yaml)
 python run_lassi.py --app layout --llm-source openai_compatible --model gpt-4.1
 
 # Everything on: judge, records, 3 timed runs, up to 5 trials, give up after 15 self-corrections
@@ -166,8 +182,9 @@ The tests are plain Python scripts; run any of them directly. To run them all at
 |---|---|---|
 | `python tests/test_reproducibility.py` | With default settings, the current code sends exactly the same prompts, in the same order, and writes the same code as the original notebook (kept in `tests/legacy/`). Also covers the prompt dictionary, the notebook's shipped defaults, the command line, the optional features, run records, the self-correction limit and the program runner. The LLM is a scripted stand-in. | `g++` |
 | `python tests/test_backends.py` | The LLM backends (OpenAI-compatible, LM Studio, Argo, model listing, configuration errors) against small local fake servers. | nothing |
+| `python tests/test_config_file.py` | `config.yaml`: values are applied, priority of flag over file over environment, blank values, error messages for typos, and that the file is git-ignored. | nothing |
 | `python tests/test_gpu_smoke.py` | The real compile, run and timing path on a GPU in both directions: the CUDA reference with `nvcc`, the OpenMP reference offloaded to the GPU with `nvc++`, and the whole pipeline CUDA to OpenMP and OpenMP to CUDA (LLM still scripted). Skips itself if there is no GPU or compiler. | NVIDIA GPU, `nvcc`, `nvc++` |
-| `python tests/test_argo_smoke.py` | One small request through the real Argo backend. Skips itself unless `LASSI_ARGO_URL` and `LASSI_ARGO_USERNAME` are set. | Argonne network |
+| `python tests/test_argo_smoke.py` | One small request through the real Argo backend. Skips itself unless Argo is configured (in `config.yaml`, or with `LASSI_ARGO_URL` and `LASSI_ARGO_USERNAME`). | Argonne network |
 
 ## Adding an Application
 

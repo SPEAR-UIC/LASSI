@@ -32,6 +32,8 @@ __pycache__/
 .venv/
 venv/
 .env.local
+# Your LLM connection settings, possibly including an API key (copy config.yaml.example to create it)
+config.yaml
 
 # --- Editor / OS ---
 .vscode/

@@ -7,7 +7,6 @@ With no optional flags this runs the pipeline of the original LASSI paper. It bu
 Config and calls the same run_experiment() as the notebook, so the two never diverge.
 """
 import argparse
-import os
 import shlex
 import sys
 
@@ -22,8 +21,10 @@ def build_parser():
         prog="run_lassi.py",
         description="LASSI: translate a HeCBench application between CUDA and OpenMP (GPU offload) with an LLM, "
                     "self-correcting from compiler and runtime errors. Defaults reproduce the original paper.",
-        epilog="Backend connection settings can also come from environment variables: OPENAI_API_KEY, "
-               "OPENAI_BASE_URL, LASSI_ARGO_URL, LASSI_ARGO_USERNAME, OLLAMA_HOST.")
+        epilog="LLM connection settings (URLs, API key, Argo username) normally live in config.yaml (copy "
+               "config.yaml.example); the flags below override it. Environment variables OPENAI_API_KEY, "
+               "OPENAI_BASE_URL, LASSI_ARGO_URL, LASSI_ARGO_USERNAME and OLLAMA_HOST are used when config.yaml "
+               "does not set the value.")
 
     g = p.add_argument_group("what to translate")
     g.add_argument("--app", default=defaults.app, help="HeCBench application folder name (default: %(default)s)")
@@ -42,18 +43,17 @@ def build_parser():
     g.add_argument("--model", default=defaults.model, help="model name (default: %(default)s)")
     g.add_argument("--num-ctx", type=int, default=defaults.num_ctx,
                    help="context window in tokens, ollama only (default: %(default)s)")
-    g.add_argument("--ollama-host", default=os.environ.get("OLLAMA_HOST"),
-                   help="Ollama server URL (default: local server)")
-    g.add_argument("--lmstudio-url", default=llm_backends.lmstudio_base_url,
-                   help="LM Studio server URL (default: %(default)s)")
-    g.add_argument("--openai-url", default=os.environ.get("OPENAI_BASE_URL", llm_backends.openai_base_url),
-                   help="OpenAI-compatible endpoint base URL (default: %(default)s)")
+    g.add_argument("--config", default=None, metavar="FILE",
+                   help="connection settings file (default: ./config.yaml; see config.yaml.example)")
+    g.add_argument("--ollama-host", default=None, help="Ollama server URL (default: local server)")
+    g.add_argument("--lmstudio-url", default=None, help="LM Studio server URL (default: http://localhost:1234/v1)")
+    g.add_argument("--openai-url", default=None,
+                   help="OpenAI-compatible endpoint base URL (default: https://api.openai.com/v1)")
     g.add_argument("--openai-api-key", default=None,
-                   help="API key for the OpenAI-compatible endpoint (prefer the OPENAI_API_KEY environment "
-                        "variable so the key does not end up in your shell history)")
-    g.add_argument("--argo-url", default=os.environ.get("LASSI_ARGO_URL"),
-                   help="Argo Gateway streamchat URL (Argonne network only)")
-    g.add_argument("--argo-username", default=os.environ.get("LASSI_ARGO_USERNAME"),
+                   help="API key for the OpenAI-compatible endpoint (better kept in config.yaml than typed here, "
+                        "where it lands in your shell history)")
+    g.add_argument("--argo-url", default=None, help="Argo Gateway streamchat URL (Argonne network only)")
+    g.add_argument("--argo-username", default=None,
                    help="your Argonne domain username, used as the Argo key (not a secret)")
     g.add_argument("--argo-ca-bundle", default=None,
                    help="path to a CA certificate bundle for the Argo gateway's TLS certificate")
@@ -91,15 +91,14 @@ def build_parser():
 
 def config_from_args(args):
     """Turn parsed arguments into a Config (applies the backend connection settings as a side effect)."""
-    llm_backends.configure(
-        ollama_host=args.ollama_host,
-        lmstudio_base_url=args.lmstudio_url,
-        openai_base_url=args.openai_url,
-        openai_api_key=args.openai_api_key or "",
-        argo_url=args.argo_url or "",
-        argo_username=args.argo_username or "",
-        argo_verify=args.argo_ca_bundle if args.argo_ca_bundle else True,
-    )
+    if args.config:
+        llm_backends.load_config_file(args.config)
+    # Only flags that were actually given override config.yaml / the environment
+    given = {"ollama_host": args.ollama_host, "lmstudio_base_url": args.lmstudio_url,
+             "openai_base_url": args.openai_url, "openai_api_key": args.openai_api_key,
+             "argo_url": args.argo_url, "argo_username": args.argo_username,
+             "argo_verify": args.argo_ca_bundle}
+    llm_backends.configure(**{name: value for name, value in given.items() if value})
     return Config(
         app=args.app, source_lang=args.source_lang, target_lang=args.target_lang,
         exe_params=shlex.split(args.exe_params) if args.exe_params is not None else None,

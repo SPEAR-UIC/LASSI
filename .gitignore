@@ -1,0 +1,22 @@
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env/
+.venv/
+venv/
+
+# Compiled outputs and scratch files
+*_main
+!*_main.cu
+!*_main.cpp
+test_offload
+test_offload_omp
+test2_de
+test_de.cpp
+test2_de.cpp
+test_offload.cpp
+
+# Experiment results (regenerate by running the pipeline)
+translated_code/argo_*/
+translated_code/ollama_*/

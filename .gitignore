@@ -1,0 +1,39 @@
+# --- Compiled binaries and build artifacts (never commit) ---
+# The pipeline compiles translated code to extensionless executables
+# named like <app>-<lang>_main next to the source file.
+*_main
+!*_main.cu
+!*_main.cpp
+*.o
+*.obj
+*.out
+*.exe
+*.so
+*.a
+*.ptx
+*.cubin
+*.fatbin
+*.ii
+*.gpu
+*.nvvm
+
+# --- Pipeline output ---
+# Generated translations and run results; only the input kernels are tracked.
+translated_code/*
+!translated_code/input_codes/
+
+# --- Python / Jupyter ---
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# --- Virtual environments and local config ---
+.env/
+.venv/
+venv/
+.env.local
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store

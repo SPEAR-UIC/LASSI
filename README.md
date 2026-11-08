@@ -43,7 +43,7 @@ The defaults reproduce the paper (see [Reproducing the paper](#reproducing-the-p
 - `source_apps.json`: the applications and their run parameters
 - `translated_code/input_codes/HeCBench/`: the benchmark sources, one folder per application, in CUDA (`<app>-cuda_main.cu`) and OpenMP (`<app>-omp_main.cpp`)
 - `translated_code/<llm_source>_<model>/`: where LASSI writes its output (created on first run, not tracked by git)
-- `tests/`: the reproducibility tests
+- `tests/`: automated tests, including the reproducibility check described under [Reproducing the Paper](#reproducing-the-paper)
 
 ## Benchmark Applications
 
@@ -172,19 +172,7 @@ With no optional flags, LASSI uses the settings of the paper (Dearing et al., LL
 - **The metrics in the paper's tables:** `Runtime`, `Ratio` (reference runtime divided by translated runtime) and `Self-corr` appear in the results CSV as `lassi_runtime_s`, `lassi_execute_ratio` and `lassi_selfcorrections`. The code-similarity scores are in each run's metadata file.
 - **Non-determinism:** LLM output varies from run to run, so a single run will not reproduce a table cell exactly.
 
-The reproducibility test (below) checks that the default configuration is unchanged.
-
-## Testing
-
-The tests are plain Python scripts; run any of them directly. To run them all at once, `pip install pytest` and then `pytest tests` (tests that need a GPU or Argo skip themselves when those are unavailable).
-
-| Test | What it checks | Needs |
-|---|---|---|
-| `python tests/test_reproducibility.py` | With default settings, the current code sends exactly the same prompts, in the same order, and writes the same code as the original notebook (kept in `tests/legacy/`). Also covers the prompt dictionary, the notebook's shipped defaults, the command line, the optional features, run records, the self-correction limit and the program runner. The LLM is a scripted stand-in. | `g++` |
-| `python tests/test_backends.py` | The LLM backends (OpenAI-compatible, LM Studio, Argo, model listing, configuration errors) against small local fake servers. | nothing |
-| `python tests/test_config_file.py` | `config.yaml`: values are applied, priority of flag over file over environment, blank values, error messages for typos, and that the file is git-ignored. | nothing |
-| `python tests/test_gpu_smoke.py` | The real compile, run and timing path on a GPU in both directions: the CUDA reference with `nvcc`, the OpenMP reference offloaded to the GPU with `nvc++`, and the whole pipeline CUDA to OpenMP and OpenMP to CUDA (LLM still scripted). Skips itself if there is no GPU or compiler. | NVIDIA GPU, `nvcc`, `nvc++` |
-| `python tests/test_argo_smoke.py` | One small request through the real Argo backend. Skips itself unless Argo is configured (in `config.yaml`, or with `LASSI_ARGO_URL` and `LASSI_ARGO_USERNAME`). | Argonne network |
+To check that the defaults still match the original, run `python tests/test_reproducibility.py` (it needs only `g++`). It runs the original notebook, kept in `tests/legacy/`, and the current code side by side with a scripted stand-in for the LLM, and requires that every prompt, in order, and the generated code are identical.
 
 ## Adding an Application
 

@@ -120,6 +120,24 @@ Some models, such as OpenAI's reasoning models, reject a custom `temperature` or
 
 ## Running LASSI
 
+### Quick start: your first translation
+
+Run these from the repository folder (output is written to `translated_code/` under the folder you run from). This translates the small `layout` benchmark from CUDA to OpenMP, which takes under a minute. Pick **one** of the two:
+
+```bash
+# No NVIDIA GPU or compiler (CPU only): just needs g++ and an LLM backend from the table above
+python run_lassi.py --app layout --source CUDA --target OMP --cpu \
+    --llm-source openai_compatible --model gpt-4.1
+
+# With an NVIDIA GPU and the HPC SDK: set the flags for YOUR GPU (here compute capability 8.9;
+# the defaults are for an A100, see "What you need to compile and run")
+python run_lassi.py --app layout --source CUDA --target OMP \
+    --llm-source openai_compatible --model gpt-4.1 \
+    --compiler-flags "-Wall -O3 -Minfo -mp=gpu -gpu=cc89"
+```
+
+Swap `--llm-source` and `--model` for the backend you set up (for Argonne staff: `--llm-source argo --model gpt4o`). When it finishes you will see `PIPELINE COMPLETED`, and the translated code and a metadata file are in the output folder (see [Output](#output)). Add `--quiet` to hide the long prompts and LLM replies and show only the progress.
+
 ### Command line
 
 ```bash
@@ -160,6 +178,8 @@ Each run writes to `translated_code/<llm_source>_<model>/promptset_<SOURCE>_to_<
 
 - the generated source file, `<app>-<source>_main_translatecode_<TARGET>_exp<label>.<ext>`, and its compiled executable
 - a `metadata_...txt` file: the configuration, the code-similarity scores, the program output of the reference and of the translation, their runtimes, and the number of self-corrections
+
+The metadata file name includes a timestamp, but the code and executable names do not: **running the same app, model and `--experiment` label again overwrites the previous code.** Copy a result you want to keep, or use `--experiment <label>` to give each run its own name.
 
 With `--record-results` there is also a results CSV (`<app>_<source>2<target>_lassi_results.csv`) and, per trial, a `records/<...>_Trial<N>__<time>/` folder with `environment.json`, `attempts.json`, the code and logs of every attempt, and `llm_calls/call_NNNN/` with each prompt and response.
 

@@ -207,8 +207,8 @@ LASSI translates only the main source file. The compiler is given the applicatio
 LASSI is the first in a family of tools from the SPEAR research group for LLM-based automated refactoring of parallel scientific GPU code:
 
 - **LASSI** (this repository): translating code between parallel programming models, with a compile-and-run self-correction loop.
-- **LASSI-EE**: uses the same loop to refactor code for energy efficiency, using GPU power measurements and an LLM judge.
-- **LASSI-Verify**: replaces the LLM judge with empirical verification tiers, to check that a refactored kernel is equivalent to the original.
+- [**LASSI-EE**](https://github.com/SPEAR-UIC/LASSI-EE): uses the same loop to refactor code for energy efficiency, using GPU power measurements and an LLM judge.
+- [**LASSI-Verify**](https://github.com/SPEAR-UIC/LASSI-Verify): replaces the LLM judge with empirical verification tiers, to check that a refactored kernel is equivalent to the original.
 
 ## Citation
 

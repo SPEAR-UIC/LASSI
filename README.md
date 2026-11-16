@@ -164,13 +164,13 @@ Open `LASSI_pipeline.ipynb` (`jupyter lab`), edit the configuration cell, and ru
 OpenMP code with `target` pragmas also runs on a CPU, where the offload regions fall back to the host. CUDA code cannot run without a GPU, but LASSI only *reads* the CUDA source when translating **to** OpenMP, so that direction needs no GPU or NVIDIA compiler:
 
 ```bash
-python run_lassi.py --app layout --source CUDA --target OMP --cpu \
-    --llm-source ollama --model codestral:22b-v0.1-q8_0
+python run_lassi.py --app matrix-rotate --source CUDA --target OMP --cpu \
+    --llm-source ollama --model codestral:22b-v0.1-q8_0 --max-self-corrections 3
 ```
 
-`--cpu` compiles with `g++ -fopenmp -O3`. Runtimes measured this way are CPU runtimes and are **not comparable** with the paper's A100 numbers; the mode is for trying LASSI out and for checking correctness.
+`--cpu` compiles with `g++ -fopenmp -O3` (tested with GCC 13), not `nvc++`. Runtimes measured this way are CPU runtimes and are **not comparable** with the paper's A100 numbers; the mode is for trying LASSI out and for checking correctness. `--max-self-corrections 3` is optional (the paper's default never gives up), but it is a good idea on a first try so that a model that keeps producing code `g++` rejects does not loop forever. LLMs sometimes write OpenMP pragmas that `g++` rejects, and fixing those is what the self-correction loop is for.
 
-How long the benchmarks take on a CPU at the default parameters (measured on a 22-core workstation; yours will differ): `bsearch`, `colorwheel`, `layout`, `dense-embedding` and `matrix-rotate` finish in under a second, and `randomAccess` in about 4 seconds. `atomicCost`, `jacobi` and `pathfinder` take **longer than 30 seconds**; use `--exe-params` with smaller values (and `--run-timeout`) to keep them quick.
+**Which applications to try on a CPU.** How long the reference programs take at the default parameters (measured on a 22-core workstation; yours will differ): `bsearch`, `colorwheel`, `layout`, `dense-embedding` and `matrix-rotate` finish in under a second, and `randomAccess` in about 4 seconds. `atomicCost` (about 1 minute), `jacobi` (several minutes) and `pathfinder` (over a minute) are slow. For a first run use `matrix-rotate`, the smallest application, or `layout`. For the slow three, use `--exe-params` with smaller values (and `--run-timeout`) to keep them quick.
 
 ### Output
 

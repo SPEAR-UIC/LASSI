@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use LASSI in your work, please cite the paper below."
+title: "LASSI: An LLM-based Automated Self-Correcting Pipeline for Translating Parallel Scientific Codes"
+type: software
+authors:
+  - family-names: Dearing
+    given-names: Matthew T.
+  - family-names: Tao
+    given-names: Yiheng
+  - family-names: Wu
+    given-names: Xingfu
+  - family-names: Lan
+    given-names: Zhiling
+  - family-names: Taylor
+    given-names: Valerie
+repository-code: "https://github.com/SPEAR-UIC/LASSI"
+preferred-citation:
+  type: conference-paper
+  title: "LASSI: An LLM-based Automated Self-Correcting Pipeline for Translating Parallel Scientific Codes"
+  authors:
+    - family-names: Dearing
+      given-names: Matthew T.
+    - family-names: Tao
+      given-names: Yiheng
+    - family-names: Wu
+      given-names: Xingfu
+    - family-names: Lan
+      given-names: Zhiling
+    - family-names: Taylor
+      given-names: Valerie
+  collection-title: "International Workshop on Large Language Models and HPC (LLMxHPC), IEEE International Conference on Cluster Computing (CLUSTER) Workshops"
+  year: 2024
+  doi: "10.1109/CLUSTERWorkshops61563.2024.00029"
+  notes: "Pre-print: arXiv:2407.01638"

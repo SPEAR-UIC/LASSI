@@ -1,0 +1,6 @@
+requests
+tiktoken
+ollama
+ipython
+jupyterlab
+pyyaml

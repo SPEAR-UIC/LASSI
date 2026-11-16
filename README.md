@@ -222,4 +222,4 @@ See [`CITATION.cff`](CITATION.cff) for a machine-readable version.
 
 ## License
 
-LASSI is released under the GNU General Public License v3.0; see [`LICENSE`](LICENSE). The HeCBench sources in `translated_code/input_codes/` retain their original licenses.
+LASSI is released under the Apache License 2.0; see [`LICENSE`](LICENSE). The HeCBench sources in `translated_code/input_codes/` retain their original licenses.

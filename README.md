@@ -2,6 +2,8 @@
 
 ![LASSI](/images/LASSI_logo_v0.png)
 
+[![DOI](https://zenodo.org/badge/833799224.svg)](https://doi.org/10.5281/zenodo.24427205)
+
 ## What is LASSI?
 
 LASSI translates parallel scientific GPU code between programming models with a large language model (LLM), and checks its own work. It asks the LLM for a translation, **compiles and runs** the result, and feeds every compiler or runtime error back to the LLM until the code works. This version translates between **CUDA** and **OpenMP with GPU offload**, and runs on ten applications from the [HeCBench](https://github.com/zjin-lcf/HeCBench) benchmark suite.
@@ -184,6 +186,14 @@ The metadata file name includes a timestamp, but the code and executable names d
 With `--record-results` there is also a results CSV (`<app>_<source>2<target>_lassi_results.csv`) and, per trial, a `records/<...>_Trial<N>__<time>/` folder with `environment.json`, `attempts.json`, the code and logs of every attempt, and `llm_calls/call_NNNN/` with each prompt and response.
 
 ## Reproducing the Paper
+
+The code that accompanies the paper is archived as release [`v1.0.0`](https://github.com/SPEAR-UIC/LASSI/releases/tag/v1.0.0):
+
+| Paper | Release | Archive (DOI) |
+|---|---|---|
+| Dearing et al., LLMxHPC at IEEE CLUSTER 2024 | [`v1.0.0`](https://github.com/SPEAR-UIC/LASSI/releases/tag/v1.0.0) | [10.5281/zenodo.24427206](https://doi.org/10.5281/zenodo.24427206) |
+
+To reproduce the paper, check out that tag (`git checkout v1.0.0`) or download the archive. The DOI in the badge at the top, [10.5281/zenodo.24427205](https://doi.org/10.5281/zenodo.24427205), always resolves to the latest LASSI release.
 
 With no optional flags, LASSI uses the settings of the paper (Dearing et al., LLMxHPC at IEEE CLUSTER 2024): the language-knowledge context and self-prompting, the prompts of Tables I to III, compile commands for an A100, the original code's sampling settings (temperature 0.2, and `top_p` 0.9 for Ollama), and self-correction until the code compiles and runs, with no limit.
 

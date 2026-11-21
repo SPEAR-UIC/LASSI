@@ -13,6 +13,9 @@ authors:
     given-names: Zhiling
   - family-names: Taylor
     given-names: Valerie
+version: 1.0.0
+date-released: 2026-11-21
+doi: "10.5281/zenodo.24427205"
 repository-code: "https://github.com/SPEAR-UIC/LASSI"
 license: Apache-2.0
 preferred-citation:
